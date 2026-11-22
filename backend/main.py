@@ -47,6 +47,10 @@ try:
     import llm_client
 except Exception:
     llm_client = None
+try:
+    import supabase_client
+except Exception:
+    supabase_client = None
 
 def _folio(prefix):
     return prefix + "-" + "".join(random.choices(string.digits, k=4))
@@ -129,12 +133,17 @@ async def chat_public(request: Request):
     info=public_info()
     context = SOULMD + "\n\nMENÚ:\n" + menu_text() + "\n\nINFO RESTAURANTE:\n" + json.dumps(info, ensure_ascii=False)
     if llm_client and llm_client.is_configured():
-        msgs=[
-            {"role":"system","content": context + "\n\nResponde solo con la respuesta final, sin razonamiento interno."},
-            {"role":"user","content": message},
-        ]
+        history = []
+        if supabase_client and supabase_client.is_configured():
+            history = supabase_client.get_history(session_id, limit=12)
+        msgs=[{"role":"system","content": context + "\n\nResponde solo con la respuesta final, sin razonamiento interno."}]
+        msgs += history
+        msgs.append({"role":"user","content": message})
         reply=llm_client.chat(msgs, temperature=0.5, max_tokens=500)
         if reply:
+            if supabase_client and supabase_client.is_configured():
+                supabase_client.save_message(session_id, "user", message)
+                supabase_client.save_message(session_id, "assistant", reply)
             return {"reply":reply,"source":"openrouter","session_id":session_id}
     low=message.lower()
     if any(k in low for k in ["hora","horario","abren","cierran"]):
@@ -154,6 +163,9 @@ async def chat_public(request: Request):
     else:
         reply=("Soy el asistente de Puerto A&M. Puedo ayudarte con el menú, reservaciones, pedidos y recomendaciones. "
                "Escribe a "+info["email"]+" o "+info["phone"]+".")
+    if supabase_client and supabase_client.is_configured():
+        supabase_client.save_message(session_id, "user", message)
+        supabase_client.save_message(session_id, "assistant", reply)
     return {"reply":reply,"source":"local","session_id":session_id}
 
 @app.get("/")

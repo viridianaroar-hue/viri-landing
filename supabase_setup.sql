@@ -10,7 +10,8 @@ create table if not exists public.chat_messages (
 -- Índice para consultas por sesión
 create index if not exists idx_chat_messages_session on public.chat_messages(session_id, created_at);
 
--- (Opcional) Permitir acceso anónimo de solo inserción/lectura para la demo
+-- Seguridad: SOLO el backend (clave secreta del servidor) accede a la tabla.
+-- No crear políticas para anon: una política de lectura "using (true)" expone todas las conversaciones.
 alter table public.chat_messages enable row level security;
-create policy "allow anon read" on public.chat_messages for select using (true);
-create policy "allow anon insert" on public.chat_messages for insert with check (true);
+revoke all on table public.chat_messages from anon, authenticated;
+grant select, insert on table public.chat_messages to service_role;

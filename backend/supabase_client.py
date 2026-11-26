@@ -7,19 +7,24 @@ import urllib.error
 import urllib.parse
 
 URL = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
-KEY = (os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY") or "").strip()
+# Clave SECRETA del servidor (sb_secret_… o service_role). La tabla no admite la clave pública/anon:
+# la lectura anónima exponía todas las conversaciones. Nunca pongas esta clave en el frontend ni en el repo.
+KEY = (os.environ.get("SUPABASE_SECRET_KEY") or os.environ.get("SUPABASE_KEY") or "").strip()
 TABLE = os.environ.get("SUPABASE_CHAT_TABLE", "chat_messages")
 
 def is_configured():
     return bool(URL and KEY)
 
 def _headers():
-    return {
+    h = {
         "apikey": KEY,
-        "Authorization": f"Bearer {KEY}",
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
+    # Las claves legadas son JWT y van también como Bearer; las nuevas sb_secret_ solo en apikey.
+    if KEY.startswith("eyJ"):
+        h["Authorization"] = f"Bearer {KEY}"
+    return h
 
 def save_message(session_id, role, content):
     if not is_configured():
